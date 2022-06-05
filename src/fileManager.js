@@ -4,6 +4,7 @@ import getArgvs from "./modules/getArgvs.js";
 import path from "path";
 import listFiles from "./modules/listFiles.js";
 import changeDirectory from "./modules/changeDirectory.js";
+import getOsInfo from "./modules/getOsInfo.js";
 
 class FileManager {
   constructor() {
@@ -51,6 +52,27 @@ class FileManager {
       } catch (err) {
         console.error(err.message);
         return;
+      }
+    } else if (input.startsWith("os ")) {
+      const commands = [
+        "--EOL",
+        "--cpus",
+        "--homedir",
+        "--username",
+        "--architecture",
+      ];
+
+      const inputArg = input.replace("os ", "").trim();
+
+      if (commands.includes(inputArg)) {
+        try {
+          getOsInfo(inputArg);
+        } catch (err) {
+          console.error(err.message);
+        }
+      } else {
+        console.log("Invalid input");
+        console.log(`Available commands: ${commands.join(", ")}`);
       }
     } else {
       console.log("Invalid input");
