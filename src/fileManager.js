@@ -8,6 +8,10 @@ import calculateHash from "./modules/calcHash.js";
 import { osCommands } from "./constants.js";
 import { readFile } from "./modules/readFile.js";
 import { validateDir, validateFile } from "./modules/validatePath.js";
+import { checkIsFileExist } from "./modules/checkIsPathExist.js";
+import fs from "fs/promises";
+import renameFile from "./modules/renameFile.js";
+import copyFile from "./modules/copyFile.js";
 
 class FileManager {
   constructor() {
@@ -114,6 +118,56 @@ class FileManager {
       } else {
         await this.executeCat(commandArg);
       }
+    } else if (command === "add") {
+      if (inputArray.length === 1) {
+        console.log("Invalid input: Provide path to file");
+      } else if (inputArray.length > 2) {
+        console.log(
+          "Invalid input: too many arguments. For path with spaces escape every space with '\\\\', e.g.: cd My\\\\ folder"
+        );
+      } else {
+        await this.executeAdd(commandArg);
+      }
+    } else if (command === "rn") {
+      if (inputArray.length === 1) {
+        console.log("Invalid input: Provide path to file & new file name");
+      } else if (inputArray.length > 3) {
+        console.log(
+          "Invalid input: too many arguments. For path with spaces escape every space with '\\\\', e.g.: cd My\\\\ folder"
+        );
+      } else {
+        await renameFile(this.currDir, commandArg, inputArray[2]);
+      }
+    } else if (command === "rm") {
+      if (inputArray.length === 1) {
+        console.log("Invalid input: Provide path to file");
+      } else if (inputArray.length > 2) {
+        console.log(
+          "Invalid input: too many arguments. For path with spaces escape every space with '\\\\', e.g.: cd My\\\\ folder"
+        );
+      } else {
+        await this.executeRm(commandArg);
+      }
+    } else if (command === "cp") {
+      if (inputArray.length === 1) {
+        console.log("Invalid input: Provide path to file & new file name");
+      } else if (inputArray.length > 3) {
+        console.log(
+          "Invalid input: too many arguments. For path with spaces escape every space with '\\\\', e.g.: cd My\\\\ folder"
+        );
+      } else {
+        await this.executeCp(commandArg, inputArray[2]);
+      }
+    } else if (command === "mv") {
+      if (inputArray.length === 1) {
+        console.log("Invalid input: Provide path to file & new file name");
+      } else if (inputArray.length > 3) {
+        console.log(
+          "Invalid input: too many arguments. For path with spaces escape every space with '\\\\', e.g.: cd My\\\\ folder"
+        );
+      } else {
+        await this.executeMv(commandArg, inputArray[2]);
+      }
     } else {
       console.log("Invalid input");
     }
@@ -163,6 +217,49 @@ class FileManager {
     } catch (error) {
       console.error(error.message);
     }
+  }
+
+  async executeAdd(inputPath) {
+    try {
+      if (inputPath) {
+        const parsedPath = inputPath.replaceAll("\\\\ ", " ");
+        const newPath = path.resolve(this.currDir, parsedPath);
+        const isFileExist = await checkIsFileExist(newPath);
+        if (isFileExist) {
+          throw new Error("Operation failed: File already exist");
+        }
+        await fs.writeFile(newPath, "", { flag: "wx" });
+      } else {
+        console.log("Invalid input: Set right path");
+      }
+    } catch (error) {
+      console.error(error.message);
+    }
+  }
+
+  async executeRm(inputPath) {
+    try {
+      const source = await validateFile(inputPath, this.currDir);
+      if (source) {
+        await fs.rm(source);
+      }
+    } catch (error) {
+      console.error(error.message);
+    }
+  }
+
+  async executeMv(source, copyPath) {
+    const sourceFile = await this.executeCp(source, copyPath);
+    console.log(sourceFile);
+
+    if (sourceFile) {
+      await fs.rm(sourceFile);
+    }
+  }
+
+  async executeCp(source, copyPath) {
+    const result = await copyFile(this.currDir, source, copyPath);
+    return result;
   }
 
   setOnInput() {

@@ -24,7 +24,7 @@ const validateDir = async (destPath, currDir) => {
 
 const validateFile = async (destPath, currDir) => {
   try {
-    if (destPath) {
+    if (destPath && currDir) {
       const parsedPath = destPath.replaceAll("\\\\ ", " ");
       const newPath = path.resolve(currDir, parsedPath);
       const pathType = await checkPathType(newPath);
