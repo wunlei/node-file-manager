@@ -8,7 +8,6 @@ const getArgvs = () => {
       result[match[1]] = match[2];
     }
   });
-  //anonymous
   return result;
 };
 

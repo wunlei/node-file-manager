@@ -6,7 +6,7 @@ const checkIsFileExist = async (filePath) => {
     return true;
   } catch (err) {
     if (err.code !== "ENOENT") {
-      console.log(err);
+      console.error(err);
     }
     return false;
   }
@@ -18,10 +18,26 @@ const checkIsDirExist = async (folderPath) => {
     return true;
   } catch (err) {
     if (err.code !== "ENOENT") {
-      console.log(err);
+      console.error(err);
     }
     return false;
   }
 };
 
-export { checkIsDirExist, checkIsFileExist };
+const checkPathType = async (path) => {
+  try {
+    const pathStat = await fs.stat(path);
+    if (pathStat.isDirectory()) {
+      return "dir";
+    } else {
+      return "file";
+    }
+  } catch (err) {
+    if (err.code !== "ENOENT") {
+      console.error(err);
+    }
+    return null;
+  }
+};
+
+export { checkIsDirExist, checkIsFileExist, checkPathType };
