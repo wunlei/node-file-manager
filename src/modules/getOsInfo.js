@@ -3,14 +3,15 @@ import os from "os";
 function getOsInfo(arg) {
   if (arg === "--cpus") {
     const cpusData = os.cpus();
-    const cpuList = cpusData.map(
-      (data, index) => `${index + 1} - ${data.model}`
-    );
-    const result = {
-      ["CPUS amount"]: cpusData.length,
-      ["CPU List"]: cpuList,
-    };
-    console.log(result);
+    const cpuList = cpusData.map((data) => {
+      const speed = (
+        data.speed > 1000 ? data.speed / 1000 : data.speed / 10
+      ).toFixed(2);
+      return [data.model, speed + "GHz"];
+    });
+
+    console.log("CPUS amount: ", cpusData.length);
+    console.table(cpuList);
   } else if (arg === "--EOL") {
     const eol = `System End-Of-Line: ${JSON.stringify(os.EOL)}`;
     console.log(eol);
