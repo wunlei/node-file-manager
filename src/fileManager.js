@@ -3,13 +3,15 @@ import path from "path";
 import readline from "readline";
 import getArgvs from "./modules/getArgvs.js";
 import listFiles from "./modules/listFiles.js";
-import validateDir from "./modules/validateDirectory.js";
+import { validateDir, validateFile } from "./modules/validatePath.js";
 
 import getOsInfo from "./modules/getOsInfo.js";
 import calculateHash from "./modules/calcHash.js";
 import { checkPathType } from "./modules/checkIsPathExist.js";
 import { osCommands } from "./constants.js";
 import fs from "fs/promises";
+import { createReadStream } from "fs";
+import stream from "stream/promises";
 
 class FileManager {
   constructor() {
@@ -54,18 +56,19 @@ class FileManager {
     }
     const inputArray = input.split(regexp);
     const command = inputArray[0];
+    const commandArg = inputArray[1];
 
     if (command === "up") {
       this.executeUp();
     } else if (command === "cd") {
       if (inputArray.length === 1) {
-        console.log("Invalid input: provide path");
+        console.log("Invalid input: Provide path to directory");
       } else if (inputArray.length > 2) {
         console.log(
-          "Invalid input: too many arguments. To use space in path escape them with '\\\\', e.g.: My\\\\ folder"
+          "Invalid input: too many arguments. For path with spaces escape every space with '\\\\', e.g.: cd My\\\\ folder"
         );
       } else {
-        await this.executeCd(inputArray[1]);
+        await this.executeCd(commandArg);
       }
     } else if (command === "ls") {
       try {
@@ -84,9 +87,9 @@ class FileManager {
       } else if (inputArray.length > 2) {
         console.log("Invalid input: too many arguments.");
       } else {
-        if (osCommands.includes(inputArray[1])) {
+        if (osCommands.includes(commandArg)) {
           try {
-            getOsInfo(inputArray[1]);
+            getOsInfo(commandArg);
           } catch (err) {
             console.error(err.message);
           }
@@ -95,6 +98,24 @@ class FileManager {
           console.log(`Available commands: ${osCommands.join(", ")}`);
         }
       }
+    } else if (command === "hash") {
+      if (inputArray.length === 1) {
+        console.log("Invalid input: Provide path to file");
+      } else if (inputArray.length > 2) {
+        console.log(
+          "Invalid input: too many arguments. For path with spaces escape every space with '\\\\', e.g.: cd My\\\\ folder"
+        );
+      } else {
+        await this.executeHash(commandArg);
+      }
+    } else if (command === "cat") {
+      const newPath = path.resolve(this.currDir, commandArg);
+      const rs = createReadStream(newPath, { encoding: "utf-8" });
+      rs.on("data", (chunk) => console.log(chunk));
+      // rs.pipe(process.stdout);
+      // rs.resume();
+      await stream.finished(rs);
+      console.log("finished");
     } else {
       console.log("Invalid input");
     }
@@ -109,15 +130,26 @@ class FileManager {
     }
   }
 
-  async executeCd(path) {
+  async executeCd(pathToFile) {
     try {
-      const newPath = await validateDir(path, this.currDir);
+      const newPath = await validateDir(pathToFile, this.currDir);
       if (newPath) {
         if (newPath.startsWith(this.startDir)) {
           this.currDir = newPath;
         } else {
           console.log("Operation failed: Can't go up from root directory");
         }
+      }
+    } catch (error) {
+      console.error(error.message);
+    }
+  }
+
+  async executeHash(inputPath) {
+    try {
+      const pathToFile = await validateFile(inputPath, this.currDir);
+      if (pathToFile) {
+        await calculateHash(pathToFile);
       }
     } catch (error) {
       console.error(error.message);
