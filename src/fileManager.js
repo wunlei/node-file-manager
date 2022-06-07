@@ -3,15 +3,11 @@ import path from "path";
 import readline from "readline";
 import getArgvs from "./modules/getArgvs.js";
 import listFiles from "./modules/listFiles.js";
-import { validateDir, validateFile } from "./modules/validatePath.js";
-
 import getOsInfo from "./modules/getOsInfo.js";
 import calculateHash from "./modules/calcHash.js";
-import { checkPathType } from "./modules/checkIsPathExist.js";
 import { osCommands } from "./constants.js";
-import fs from "fs/promises";
-import { createReadStream } from "fs";
-import stream from "stream/promises";
+import { readFile } from "./modules/readFile.js";
+import { validateDir, validateFile } from "./modules/validatePath.js";
 
 class FileManager {
   constructor() {
@@ -109,13 +105,15 @@ class FileManager {
         await this.executeHash(commandArg);
       }
     } else if (command === "cat") {
-      const newPath = path.resolve(this.currDir, commandArg);
-      const rs = createReadStream(newPath, { encoding: "utf-8" });
-      rs.on("data", (chunk) => console.log(chunk));
-      // rs.pipe(process.stdout);
-      // rs.resume();
-      await stream.finished(rs);
-      console.log("finished");
+      if (inputArray.length === 1) {
+        console.log("Invalid input: Provide path to file");
+      } else if (inputArray.length > 2) {
+        console.log(
+          "Invalid input: too many arguments. For path with spaces escape every space with '\\\\', e.g.: cd My\\\\ folder"
+        );
+      } else {
+        await this.executeCat(commandArg);
+      }
     } else {
       console.log("Invalid input");
     }
@@ -150,6 +148,17 @@ class FileManager {
       const pathToFile = await validateFile(inputPath, this.currDir);
       if (pathToFile) {
         await calculateHash(pathToFile);
+      }
+    } catch (error) {
+      console.error(error.message);
+    }
+  }
+
+  async executeCat(inputPath) {
+    try {
+      const pathToFile = await validateFile(inputPath, this.currDir);
+      if (pathToFile) {
+        await readFile(pathToFile);
       }
     } catch (error) {
       console.error(error.message);
