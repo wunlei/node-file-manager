@@ -10,8 +10,13 @@ import { readFile } from "./modules/readFile.js";
 import { validateDir, validateFile } from "./modules/validatePath.js";
 import { checkIsFileExist } from "./modules/checkIsPathExist.js";
 import fs from "fs/promises";
+import zlib from "zlib";
 import renameFile from "./modules/renameFile.js";
 import copyFile from "./modules/copyFile.js";
+import { createReadStream, createWriteStream } from "fs";
+import { finished } from "stream/promises";
+import compressBr from "./modules/compress.js";
+import decompressBr from "./modules/decompress.js";
 
 class FileManager {
   constructor() {
@@ -168,6 +173,26 @@ class FileManager {
       } else {
         await this.executeMv(commandArg, inputArray[2]);
       }
+    } else if (command === "compress") {
+      if (inputArray.length === 1) {
+        console.log("Invalid input: Provide path to file & new file name");
+      } else if (inputArray.length > 3) {
+        console.log(
+          "Invalid input: too many arguments. For path with spaces escape every space with '\\\\', e.g.: cd My\\\\ folder"
+        );
+      } else {
+        await this.executeCompress(commandArg, inputArray[2]);
+      }
+    } else if (command === "decompress") {
+      if (inputArray.length === 1) {
+        console.log("Invalid input: Provide path to file & new file name");
+      } else if (inputArray.length > 3) {
+        console.log(
+          "Invalid input: too many arguments. For path with spaces escape every space with '\\\\', e.g.: cd My\\\\ folder"
+        );
+      } else {
+        await this.executeDecompress(commandArg, inputArray[2]);
+      }
     } else {
       console.log("Invalid input");
     }
@@ -260,6 +285,14 @@ class FileManager {
   async executeCp(source, copyPath) {
     const result = await copyFile(this.currDir, source, copyPath);
     return result;
+  }
+
+  async executeCompress(source, dest) {
+    await compressBr(this.currDir, source, dest);
+  }
+
+  async executeDecompress(source, dest) {
+    await decompressBr(this.currDir, source, dest);
   }
 
   setOnInput() {
