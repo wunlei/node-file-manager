@@ -74,8 +74,8 @@ class FileManager {
       handleError(ErrorMsg.INVALID_INPUT);
       return;
     }
-
-    const inputArray = input.split(regexpSpaces);
+    const parsedInput = input.split(regexpSpaces);
+    const inputArray = parsedInput.filter((el) => el !== "");
     const command = inputArray[0];
     const commandArg = inputArray[1];
     const commandArgExtra = inputArray[2];
