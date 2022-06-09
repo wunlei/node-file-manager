@@ -43,7 +43,7 @@ async function compressBr(currDir, source, dest) {
       .pipe(compressStream)
       .pipe(writeStream)
       .on("error", (error) => {
-        throw new Error(error);
+        console.error(error.message);
       });
 
     await finished(writeStream);

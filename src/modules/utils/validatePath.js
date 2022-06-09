@@ -15,7 +15,7 @@ const validateDir = async (currDir, destPath) => {
       return null;
     }
   } catch (error) {
-    throw new Error(error);
+    console.error(error.message);
   }
 };
 
@@ -33,7 +33,7 @@ const validateFile = async (currDir, destPath) => {
       return null;
     }
   } catch (error) {
-    throw new Error(error);
+    console.error(error.message);
   }
 };
 

@@ -31,7 +31,7 @@ async function copyFile(currDir, source, copyPath) {
     const readStream = createReadStream(sourceFile);
     const writeStream = createWriteStream(destFile);
     readStream.pipe(writeStream).on("error", (error) => {
-      throw new Error(error);
+      console.error(error.message);
     });
 
     await finished(writeStream);
