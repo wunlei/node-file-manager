@@ -29,8 +29,10 @@ const checkPathType = async (path) => {
     const pathStat = await fs.stat(path);
     if (pathStat.isDirectory()) {
       return "dir";
-    } else {
+    } else if (pathStat.isFile()) {
       return "file";
+    } else {
+      return null;
     }
   } catch (err) {
     if (err.code !== "ENOENT") {

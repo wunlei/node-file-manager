@@ -1,22 +1,28 @@
+import fs from "fs/promises";
 import os from "os";
 import path from "path";
 import readline from "readline";
-import getArgvs from "./modules/getArgvs.js";
-import listFiles from "./modules/listFiles.js";
-import getOsInfo from "./modules/getOsInfo.js";
-import calculateHash from "./modules/calcHash.js";
-import { osCommands } from "./constants.js";
-import { readFile } from "./modules/readFile.js";
-import { validateDir, validateFile } from "./modules/validatePath.js";
-import { checkIsFileExist } from "./modules/checkIsPathExist.js";
-import fs from "fs/promises";
-import zlib from "zlib";
-import renameFile from "./modules/renameFile.js";
-import copyFile from "./modules/copyFile.js";
-import { createReadStream, createWriteStream } from "fs";
-import { finished } from "stream/promises";
-import compressBr from "./modules/compress.js";
-import decompressBr from "./modules/decompress.js";
+import getArgvs from "./modules/utils/getArgvs.js";
+import listFiles from "./modules/navigation/listFiles.js";
+import getOsInfo from "./modules/os/getOsInfo.js";
+import calculateHash from "./modules/hash/calcHash.js";
+import compressBr from "./modules/zlib/compress.js";
+import decompressBr from "./modules/zlib/decompress.js";
+import copyFile from "./modules/filesystem/copyFile.js";
+import renameFile from "./modules/filesystem/renameFile.js";
+import { readFile } from "./modules/filesystem/readFile.js";
+import { validateFile } from "./modules/utils/validatePath.js";
+import { checkIsFileExist } from "./modules/utils/checkIsPathExist.js";
+import { ErrorMsg, osCommands, regexpSpaces } from "./constants.js";
+import {
+  showCurrPath,
+  showGoodbyeMsg,
+  showGreeting,
+} from "./modules/utils/showMessage.js";
+import { handleError } from "./modules/utils/handleErrors.js";
+import validateArguments from "./modules/utils/validateArguments.js";
+import getDir from "./modules/navigation/changeDir.js";
+import getParsedPath from "./modules/utils/getParsedPath.js";
 
 class FileManager {
   constructor() {
@@ -31,170 +37,174 @@ class FileManager {
     this.setOnInput();
   }
 
+  setOnClose() {
+    this.rl.on("SIGINT", () => {
+      showGoodbyeMsg(this.variables.username);
+      this.rl.close();
+    });
+  }
+
+  setOnInput() {
+    this.rl.on("line", async (input) => {
+      if (input === ".exit") {
+        showGoodbyeMsg(this.variables.username);
+        this.rl.close();
+      } else {
+        await this.checkUserInput(input);
+        showCurrPath(this.currDir);
+        this.rl.prompt();
+      }
+    });
+  }
+
   init() {
     if (!this.variables.username) {
-      console.log("Username was not given");
+      console.log(ErrorMsg.NO_USER);
       this.rl.close();
       process.exit(1);
     }
-    const greetingMsg = `Welcome to the File Manager, ${this.variables.username}!\n`;
-    console.log("\x1b[1m", greetingMsg, "\x1b[0m");
-    this.showCurrPath();
+
+    showGreeting(this.variables.username);
+    showCurrPath(this.currDir);
     this.rl.prompt();
   }
 
-  showCurrPath() {
-    const pathMsg = `You are currently in ${this.startDir}\n`;
-    console.log(pathMsg);
-  }
-
-  showGoodbyeMsg() {
-    const goodbyeMsg = `Thank you for using File Manager, ${this.variables.username}!\n`;
-    console.log("\n", "\x1b[1m", goodbyeMsg, "\x1b[0m");
-  }
-
-  async checkInput(input) {
-    const regexp = /(?<!\\) /g;
+  async checkUserInput(input) {
     if (input === "") {
-      console.log("Invalid input");
+      handleError(ErrorMsg.INVALID_INPUT);
       return;
     }
-    const inputArray = input.split(regexp);
+
+    const inputArray = input.split(regexpSpaces);
     const command = inputArray[0];
     const commandArg = inputArray[1];
+    const commandArgExtra = inputArray[2];
 
     if (command === "up") {
-      this.executeUp();
+      try {
+        this.executeUp();
+      } catch (err) {
+        console.error(err.message);
+      }
     } else if (command === "cd") {
-      if (inputArray.length === 1) {
-        console.log("Invalid input: Provide path to directory");
-      } else if (inputArray.length > 2) {
-        console.log(
-          "Invalid input: too many arguments. For path with spaces escape every space with '\\\\', e.g.: cd My\\\\ folder"
-        );
-      } else {
-        await this.executeCd(commandArg);
+      try {
+        const isValidInput = validateArguments(inputArray, 2, "cd");
+
+        if (isValidInput) {
+          await this.executeCd(commandArg);
+        }
+      } catch (err) {
+        console.error(err.message);
       }
     } else if (command === "ls") {
       try {
         const files = await listFiles(this.currDir);
-        console.log(files);
+        if (files) {
+          console.log(files);
+        } else {
+          handleError(ErrorMsg.DIR_NOT_EXITS_OP);
+        }
       } catch (err) {
         console.error(err.message);
       }
     } else if (command === "os") {
-      if (inputArray.length === 1) {
-        console.log(
-          `Invalid input: provide one of the arguments: ${osCommands.join(
-            ", "
-          )}`
-        );
-      } else if (inputArray.length > 2) {
-        console.log("Invalid input: too many arguments.");
-      } else {
-        if (osCommands.includes(commandArg)) {
-          try {
+      try {
+        const isValidInput = validateArguments(inputArray, 2, "os");
+        if (isValidInput) {
+          if (osCommands.includes(commandArg)) {
             getOsInfo(commandArg);
-          } catch (err) {
-            console.error(err.message);
+          } else {
+            handleError(ErrorMsg.ARGUMENTS_OS);
           }
-        } else {
-          console.log("Invalid input");
-          console.log(`Available commands: ${osCommands.join(", ")}`);
         }
+      } catch (err) {
+        console.error(err.message);
       }
     } else if (command === "hash") {
-      if (inputArray.length === 1) {
-        console.log("Invalid input: Provide path to file");
-      } else if (inputArray.length > 2) {
-        console.log(
-          "Invalid input: too many arguments. For path with spaces escape every space with '\\\\', e.g.: cd My\\\\ folder"
-        );
-      } else {
-        await this.executeHash(commandArg);
+      try {
+        const isValidInput = validateArguments(inputArray, 2, "hash");
+        if (isValidInput) {
+          await this.executeHash(commandArg);
+        }
+      } catch (err) {
+        console.error(err.message);
       }
     } else if (command === "cat") {
-      if (inputArray.length === 1) {
-        console.log("Invalid input: Provide path to file");
-      } else if (inputArray.length > 2) {
-        console.log(
-          "Invalid input: too many arguments. For path with spaces escape every space with '\\\\', e.g.: cd My\\\\ folder"
-        );
-      } else {
-        await this.executeCat(commandArg);
+      try {
+        const isValidInput = validateArguments(inputArray, 2, "cat");
+        if (isValidInput) {
+          await this.executeCat(commandArg);
+        }
+      } catch (err) {
+        console.error(err.message);
       }
     } else if (command === "add") {
-      if (inputArray.length === 1) {
-        console.log("Invalid input: Provide path to file");
-      } else if (inputArray.length > 2) {
-        console.log(
-          "Invalid input: too many arguments. For path with spaces escape every space with '\\\\', e.g.: cd My\\\\ folder"
-        );
-      } else {
-        await this.executeAdd(commandArg);
+      try {
+        const isValidInput = validateArguments(inputArray, 2, "add");
+        if (isValidInput) {
+          await this.executeAdd(commandArg);
+        }
+      } catch (err) {
+        console.error(err.message);
       }
     } else if (command === "rn") {
-      if (inputArray.length === 1) {
-        console.log("Invalid input: Provide path to file & new file name");
-      } else if (inputArray.length > 3) {
-        console.log(
-          "Invalid input: too many arguments. For path with spaces escape every space with '\\\\', e.g.: cd My\\\\ folder"
-        );
-      } else {
-        await renameFile(this.currDir, commandArg, inputArray[2]);
+      try {
+        const isValidInput = validateArguments(inputArray, 3, "rn");
+        if (isValidInput) {
+          await renameFile(this.currDir, commandArg, commandArgExtra);
+        }
+      } catch (err) {
+        console.error(err.message);
       }
     } else if (command === "rm") {
-      if (inputArray.length === 1) {
-        console.log("Invalid input: Provide path to file");
-      } else if (inputArray.length > 2) {
-        console.log(
-          "Invalid input: too many arguments. For path with spaces escape every space with '\\\\', e.g.: cd My\\\\ folder"
-        );
-      } else {
-        await this.executeRm(commandArg);
+      try {
+        const isValidInput = validateArguments(inputArray, 2, "rm");
+        if (isValidInput) {
+          await this.executeRm(commandArg);
+        }
+      } catch (err) {
+        console.error(err.message);
       }
     } else if (command === "cp") {
-      if (inputArray.length === 1) {
-        console.log("Invalid input: Provide path to file & new file name");
-      } else if (inputArray.length > 3) {
-        console.log(
-          "Invalid input: too many arguments. For path with spaces escape every space with '\\\\', e.g.: cd My\\\\ folder"
-        );
-      } else {
-        await this.executeCp(commandArg, inputArray[2]);
+      try {
+        const isValidInput = validateArguments(inputArray, 3, "cp");
+        if (isValidInput) {
+          await this.executeCp(commandArg, commandArgExtra);
+        }
+      } catch (err) {
+        console.error(err.message);
       }
     } else if (command === "mv") {
-      if (inputArray.length === 1) {
-        console.log("Invalid input: Provide path to file & new file name");
-      } else if (inputArray.length > 3) {
-        console.log(
-          "Invalid input: too many arguments. For path with spaces escape every space with '\\\\', e.g.: cd My\\\\ folder"
-        );
-      } else {
-        await this.executeMv(commandArg, inputArray[2]);
+      try {
+        const isValidInput = validateArguments(inputArray, 3, "mv");
+        if (isValidInput) {
+          await this.executeMv(commandArg, commandArgExtra);
+        }
+      } catch (err) {
+        console.error(err.message);
       }
     } else if (command === "compress") {
-      if (inputArray.length === 1) {
-        console.log("Invalid input: Provide path to file & new file name");
-      } else if (inputArray.length > 3) {
-        console.log(
-          "Invalid input: too many arguments. For path with spaces escape every space with '\\\\', e.g.: cd My\\\\ folder"
-        );
-      } else {
-        await this.executeCompress(commandArg, inputArray[2]);
+      try {
+        const isValidInput = validateArguments(inputArray, 3, "compress");
+
+        if (isValidInput) {
+          await this.executeCompress(commandArg, commandArgExtra);
+        }
+      } catch (err) {
+        console.error(err.message);
       }
     } else if (command === "decompress") {
-      if (inputArray.length === 1) {
-        console.log("Invalid input: Provide path to file & new file name");
-      } else if (inputArray.length > 3) {
-        console.log(
-          "Invalid input: too many arguments. For path with spaces escape every space with '\\\\', e.g.: cd My\\\\ folder"
-        );
-      } else {
-        await this.executeDecompress(commandArg, inputArray[2]);
+      try {
+        const isValidInput = validateArguments(inputArray, 3, "compress");
+
+        if (isValidInput) {
+          await this.executeDecompress(commandArg, commandArgExtra);
+        }
+      } catch (err) {
+        console.error(err.message);
       }
     } else {
-      console.log("Invalid input");
+      handleError(ErrorMsg.EMPTY_COMMAND);
     }
   }
 
@@ -202,44 +212,53 @@ class FileManager {
     if (this.currDir !== this.startDir) {
       const parsedPath = path.parse(this.currDir);
       this.currDir = parsedPath.dir;
+      return true;
     } else {
-      console.log("Operation failed: Can't go up from root directory");
+      handleError(ErrorMsg.HOME_DIR_REACHED);
+      return false;
     }
   }
 
-  async executeCd(pathToFile) {
+  async executeCd(pathToDir) {
     try {
-      const newPath = await validateDir(pathToFile, this.currDir);
-      if (newPath) {
-        if (newPath.startsWith(this.startDir)) {
-          this.currDir = newPath;
-        } else {
-          console.log("Operation failed: Can't go up from root directory");
-        }
+      const newDir = await getDir(this.startDir, this.currDir, pathToDir);
+      if (newDir) {
+        this.currDir = newDir;
+        return true;
+      } else {
+        handleError(ErrorMsg.DIR_NOT_EXIST);
+        return false;
       }
     } catch (error) {
+      handleError(ErrorMsg.OPERATION_FAIL);
       console.error(error.message);
     }
   }
 
   async executeHash(inputPath) {
     try {
-      const pathToFile = await validateFile(inputPath, this.currDir);
+      const pathToFile = await validateFile(this.currDir, inputPath);
       if (pathToFile) {
         await calculateHash(pathToFile);
+      } else {
+        handleError(ErrorMsg.FILE_NOT_EXIST);
       }
     } catch (error) {
+      handleError(ErrorMsg.OPERATION_FAIL);
       console.error(error.message);
     }
   }
 
   async executeCat(inputPath) {
     try {
-      const pathToFile = await validateFile(inputPath, this.currDir);
+      const pathToFile = await validateFile(this.currDir, inputPath);
       if (pathToFile) {
         await readFile(pathToFile);
+      } else {
+        handleError(ErrorMsg.FILE_NOT_EXIST);
       }
     } catch (error) {
+      handleError(ErrorMsg.OPERATION_FAIL);
       console.error(error.message);
     }
   }
@@ -247,72 +266,88 @@ class FileManager {
   async executeAdd(inputPath) {
     try {
       if (inputPath) {
-        const parsedPath = inputPath.replaceAll("\\\\ ", " ");
-        const newPath = path.resolve(this.currDir, parsedPath);
-        const isFileExist = await checkIsFileExist(newPath);
+        const filePath = getParsedPath(this.currDir, inputPath);
+        const isFileExist = await checkIsFileExist(filePath);
         if (isFileExist) {
-          throw new Error("Operation failed: File already exist");
+          handleError(ErrorMsg.FILE_ALREADY_EXIST);
+          return false;
         }
-        await fs.writeFile(newPath, "", { flag: "wx" });
-      } else {
-        console.log("Invalid input: Set right path");
+        await fs.writeFile(filePath, "", { flag: "wx" });
       }
     } catch (error) {
+      handleError(ErrorMsg.OPERATION_FAIL);
       console.error(error.message);
     }
   }
 
   async executeRm(inputPath) {
     try {
-      const source = await validateFile(inputPath, this.currDir);
+      const source = await validateFile(this.currDir, inputPath);
       if (source) {
         await fs.rm(source);
+      } else {
+        handleError(ErrorMsg.FILE_NOT_EXIST);
       }
     } catch (error) {
+      handleError(ErrorMsg.OPERATION_FAIL);
       console.error(error.message);
     }
   }
 
   async executeMv(source, copyPath) {
-    const sourceFile = await this.executeCp(source, copyPath);
-    console.log(sourceFile);
-
-    if (sourceFile) {
-      await fs.rm(sourceFile);
+    if (copyPath === "") {
+      handleError(ErrorMsg.EMPTY_NAME);
+      return false;
+    }
+    try {
+      const sourceFile = await this.executeCp(source, copyPath);
+      if (sourceFile) {
+        await fs.rm(sourceFile);
+      }
+    } catch (error) {
+      handleError(ErrorMsg.OPERATION_FAIL);
+      console.error(error.message);
     }
   }
 
   async executeCp(source, copyPath) {
-    const result = await copyFile(this.currDir, source, copyPath);
-    return result;
+    if (copyPath === "") {
+      handleError(ErrorMsg.EMPTY_NAME);
+      return false;
+    }
+    try {
+      const result = await copyFile(this.currDir, source, copyPath);
+      return result;
+    } catch (error) {
+      handleError(ErrorMsg.OPERATION_FAIL);
+      console.error(error.message);
+    }
   }
 
   async executeCompress(source, dest) {
-    await compressBr(this.currDir, source, dest);
+    if (dest === "") {
+      handleError(ErrorMsg.EMPTY_NAME);
+      return false;
+    }
+    try {
+      await compressBr(this.currDir, source, dest);
+    } catch (error) {
+      handleError(ErrorMsg.OPERATION_FAIL);
+      console.error(error.message);
+    }
   }
 
   async executeDecompress(source, dest) {
-    await decompressBr(this.currDir, source, dest);
-  }
-
-  setOnInput() {
-    this.rl.on("line", async (input) => {
-      if (input === ".exit") {
-        this.showGoodbyeMsg();
-        this.rl.close();
-      } else {
-        await this.checkInput(input);
-        console.log(`\nYou are currently in ${this.currDir}`);
-        this.rl.prompt();
-      }
-    });
-  }
-
-  setOnClose() {
-    this.rl.on("SIGINT", () => {
-      this.showGoodbyeMsg();
-      this.rl.close();
-    });
+    if (dest === "") {
+      handleError(ErrorMsg.EMPTY_NAME);
+      return false;
+    }
+    try {
+      await decompressBr(this.currDir, source, dest);
+    } catch (error) {
+      handleError(ErrorMsg.OPERATION_FAIL);
+      console.error(error.message);
+    }
   }
 }
 

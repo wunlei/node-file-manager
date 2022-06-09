@@ -1,4 +1,4 @@
-const getArgvs = () => {
+function getArgvs() {
   const argvs = process.argv.slice(2);
   const regexp = /--(\w+)=(\w+)/im;
   const result = {};
@@ -9,6 +9,6 @@ const getArgvs = () => {
     }
   });
   return result;
-};
+}
 
 export default getArgvs;
