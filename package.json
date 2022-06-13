@@ -1,0 +1,19 @@
+{
+  "name": "node-file-manager",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node src/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wunlei/node-file-manager.git"
+  },
+  "author": "wunlei",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/wunlei/node-file-manager/issues"
+  },
+  "homepage": "https://github.com/wunlei/node-file-manager#readme"
+}
